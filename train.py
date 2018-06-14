@@ -47,7 +47,7 @@ def train_1(device, Fe, F1, F2, Ft, train_loader, val_loader, epochs=1):
                 tmp_1 = []
                 tmp_2 = []
                 tmp_t = []
-                if idx % 30 == 0:
+                if idx % 500 == 0:
                     with tqdm(total=len(val_loader.dataset), desc='Calculate validation accuracy') as pval:
                         for idv, (xv, yv) in enumerate(val_loader):
                             xv = xv.to(device)
@@ -55,7 +55,7 @@ def train_1(device, Fe, F1, F2, Ft, train_loader, val_loader, epochs=1):
                             tfeatures = Fe(xv)
                             tmp_t.append((Ft(tfeatures).max(1)[1] == yv))
                             tmp_1.append((F1(tfeatures).max(1)[1] == yv))
-                            tmp_2.append((F1(tfeatures).max(1)[1] == yv))
+                            tmp_2.append((F2(tfeatures).max(1)[1] == yv))
                             pval.update(val_loader.batch_size)
                     val_acc_t = torch.mean(torch.cat(tmp_t).float())
                     val_acc_1 = torch.mean(torch.cat(tmp_1).float())
@@ -63,8 +63,6 @@ def train_1(device, Fe, F1, F2, Ft, train_loader, val_loader, epochs=1):
 
                 pbar.set_postfix_str('Target net Acc %f - Net 1 Acc %f - Net 2 Acc %f'%(val_acc_t, val_acc_1, val_acc_2))
                 pbar.update(train_loader.batch_size)
-                if idx > 30:
-                    break
 
     save_checkpoint({
         'epoch': epochs + 1,
@@ -168,8 +166,8 @@ def main():
                                            shuffle=True,
                                            num_workers=1)
 
-    # train_1('cuda', Fe, F1, F2, Ft, train_data, val_data)
-    train_2('cuda', Fe, F1, F2, Ft, None, svhn, None)
+    train_1('cuda', Fe, F1, F2, Ft, train_data, val_data, epochs=10)
+    #train_2('cuda', Fe, F1, F2, Ft, None, svhn, None)
     # tmp_1 = []
     # tmp_2 = []
     # tmp_t = []
