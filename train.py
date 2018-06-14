@@ -66,6 +66,7 @@ def train_1(device, Fe, F1, F2, Ft, train_loader, val_loader, epochs=1):
 
     save_checkpoint({
         'epoch': epochs + 1,
+        'Fe': Fe.state_dict(),
         'F1': F1.state_dict(),
         'F2': F2.state_dict(),
         'Ft': Ft.state_dict(),
