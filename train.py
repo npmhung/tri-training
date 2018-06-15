@@ -98,12 +98,17 @@ def label_target(Fe, F1, F2, T_loader, S_loader, Nt=5000, thres=0.9, device='cud
             pbar.update(T_loader.batch_size)
 
     T_new = T_new[:Nt]
+
+    T_new_loader = None
     try:
         T_new_loader = torch.utils.data.TensorDataset(zip(*T_new))
-    except:
-        T_new_loader = torch.utils.data.TensorDataset([], [])
+    except Exception as e:
+        print(e)
 
-    L = Concat2Dataset(S_loader, T_new_loader)
+
+    # if T_new_loader is None:
+    #     L = S_loader.dataset
+    L = Concat2Dataset(S_loader.dataset, T_new_loader.dataset) if T_new_loader is not None else S_loader.dataset
     L_loader = torch.utils.data.DataLoader(L, batch_size=128, num_workers=DATA_WORKERS, shuffle=True)
 
     return L_loader, T_new_loader
