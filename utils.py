@@ -11,7 +11,7 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
         shutil.copyfile(filename, 'model_best.pth.tar')
 
 
-def load_checkpoint(path):
+def load_checkpoint(path, models):
     """
 
     :param path: path to checkpoint
@@ -19,16 +19,18 @@ def load_checkpoint(path):
     """
     assert os.path.exists(path), 'Checkpoint doesn\'t exist.'
     checkpoint = torch.load(path)
+    for m in models:
+        models[m].load_state_dict(checkpoint[m])
 
-    return checkpoint
+    return models
 
 
-def get_model(pretrain=False, path=None, device='cuda'):
+def get_model(models, pretrain=False, path=None, device='cuda'):
     assert device in ['cuda', 'cpu'], 'Undefined device.'
     assert not pretrain or (pretrain and path is not None), 'Provide path to load pretrain model'
 
     if pretrain:
-        return load_checkpoint(path)
+        return load_checkpoint(path, models)
 
     ret = {
         'Fe': F_extractor().to(device),

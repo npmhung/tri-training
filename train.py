@@ -22,9 +22,8 @@ def train_1(device, Fe, F1, F2, Ft, train_loader, val_loader, epochs=1):
     opt = optim.Adam([*F1.parameters(), *F2.parameters(), *Fe.parameters(), *Ft.parameters()], lr=1e-2)
     scheduler = optim.lr_scheduler.StepLR(opt, 100, 0.9)
 
-    lambda_view = 1e-4
+    lambda_view = 1e-2
     for epoch in range(epochs):
-        tqdm()
         with tqdm(total=len(train_loader.dataset), desc='Training phase 1') as pbar:
             val_acc_t = val_acc_1 = val_acc_2 = 0
             for idx, (x, y) in enumerate(train_loader):
@@ -49,7 +48,7 @@ def train_1(device, Fe, F1, F2, Ft, train_loader, val_loader, epochs=1):
                 tmp_1 = []
                 tmp_2 = []
                 tmp_t = []
-                if idx % 500 == 0:
+                if idx % 100 == 0:
                     with tqdm(total=len(val_loader.dataset), desc='Calculate validation accuracy') as pval:
                         for idv, (xv, yv) in enumerate(val_loader):
                             xv = xv.to(device)
@@ -101,15 +100,24 @@ def label_target(Fe, F1, F2, T_loader, S_loader, Nt=5000, thres=0.9, device='cud
 
     T_new_loader = None
     try:
-        T_new_loader = torch.utils.data.TensorDataset(zip(*T_new))
+        xx, yy = [*zip(*T_new)]
+
+        xx = torch.stack(xx, 0).to('cpu')
+        yy = torch.stack(yy, 0).to('cpu')
     except Exception as e:
         print(e)
+        xx = torch.tensor([])
+        yy = torch.tensor([])
+    T_new = torch.utils.data.TensorDataset(xx, yy)
+    #except Exception as e:
+    #    print(e)
 
 
     # if T_new_loader is None:
     #     L = S_loader.dataset
-    L = Concat2Dataset(S_loader.dataset, T_new_loader.dataset) if T_new_loader is not None else S_loader.dataset
+    L = Concat2Dataset(S_loader.dataset, T_new) if T_new is not None else S_loader.dataset
     L_loader = torch.utils.data.DataLoader(L, batch_size=128, num_workers=DATA_WORKERS, shuffle=True)
+    T_new_loader = torch.utils.data.DataLoader(T_new, batch_size=128, num_workers=DATA_WORKERS, shuffle=True)
 
     return L_loader, T_new_loader
 
@@ -129,7 +137,6 @@ def train_2(device, Fe, F1, F2, Ft, S, T, Val, step=50, iters = 2, val_step=100)
     :param iters:
     :return:
     """
-
     # label
     T_loader = torch.utils.data.DataLoader(T, batch_size=128, num_workers=DATA_WORKERS, shuffle=True)
     S_loader = torch.utils.data.DataLoader(S, batch_size=128, num_workers=DATA_WORKERS, shuffle=True)
@@ -146,12 +153,16 @@ def train_2(device, Fe, F1, F2, Ft, S, T, Val, step=50, iters = 2, val_step=100)
     lambda_view = 1e-2
 
     for k in range(step):
-        print('New target dataset size %d'%(len(T_new_loader.dataset)))
+        try:
+            print('New target dataset size %d'%(len(T_new_loader.dataset)))
+        except:
+            pass
         thres = min(0.9, thres+0.01)
         for _ in range(iters):
             with tqdm(total=len(L_loader.dataset), desc='Train labeling network.') as pbar:
                 train_acc1 = train_acc2 = val_acc1 = val_acc2 = 0
                 for idx, (x, y) in enumerate(L_loader):
+                    break
                     scheduler_1.step()
                     x = x.to(device)
                     y = y.to(device)
@@ -187,7 +198,7 @@ def train_2(device, Fe, F1, F2, Ft, S, T, Val, step=50, iters = 2, val_step=100)
                     train_acc1 = torch.mean((o1.max(1)[1] == y).float())
                     train_acc2 = torch.mean((o2.max(1)[1] == y).float())
 
-                    pbar.set_postfix_str('Train acc 1: %f - 2: %f \n Validation acc 1: %f - 2: %f' %
+                    pbar.set_postfix_str('Train acc 1: %f - 2: %f Validation acc 1: %f - 2: %f' %
                                          (train_acc1, train_acc2, val_acc1, val_acc2))
                     pbar.update(L_loader.batch_size)
 
@@ -196,7 +207,6 @@ def train_2(device, Fe, F1, F2, Ft, S, T, Val, step=50, iters = 2, val_step=100)
                 for idx, (x, y) in enumerate(T_new_loader):
                     x = x.to(device)
                     y = y.to(device)
-
                     o = Ft(Fe(x))
 
                     loss = F.cross_entropy(o, y)
@@ -205,7 +215,7 @@ def train_2(device, Fe, F1, F2, Ft, S, T, Val, step=50, iters = 2, val_step=100)
                     loss.backward()
                     opt_target.step()
 
-                    if idx % val_step:
+                    if idx % val_step == 0:
                         tmp = []
                         for idy, (xval, yval) in enumerate(Val_loader):
                             xval = xval.to(device)
@@ -215,13 +225,15 @@ def train_2(device, Fe, F1, F2, Ft, S, T, Val, step=50, iters = 2, val_step=100)
                             tmp.append(_o.max(1)[1] == yval)
 
                         val_acc = torch.mean(torch.cat(tmp).float())
-
+                    train_acc = torch.mean((o.max(1)[1] == y).float())
                     pbar.set_postfix_str('Train acc: %f - Validation acc: %f' % (train_acc, val_acc))
+                    pbar.update(T_new_loader.batch_size)
 
-        Nt = int(k/20*len(T_loader))
+        Nt = int((k+1)/20*len(T_loader.dataset))
+        print('NT ', Nt, len(T_loader))
         L_loader, T_new_loader = label_target(Fe, F1, F2, T_loader, S_loader, Nt, thres=thres)
         save_checkpoint({
-            'epoch': k + 1,
+            'step': k + 1,
             'Fe': Fe.state_dict(),
             'F1': F1.state_dict(),
             'F2': F2.state_dict(),
@@ -241,7 +253,19 @@ def main():
     svhn = tv.datasets.SVHN('./dataset/svhn', download=True, transform=transform_svhn, split='train')
     svhn_val = tv.datasets.SVHN('./dataset/svhn', download=True, transform=transform_svhn, split='test')
     device = 'cuda'
-    models = get_model()
+    Fe = F_extractor().to(device)
+    F1 = F_label().to(device)
+    F2 = F_label().to(device)
+    Ft = F_label().to(device)
+
+    models = {
+        'Fe': Fe,
+        'F1': F1,
+        'F2': F2,
+        'Ft': Ft
+    }
+    models = get_model(models, pretrain=False, path='phase2.pth.tar')
+    
     Fe = models['Fe']
     F1 = models['F1']
     F2 = models['F2']
@@ -262,8 +286,7 @@ def main():
                                            batch_size=batch_size,
                                            shuffle=True,
                                            num_workers=DATA_WORKERS)
-
-    train_1('cuda', Fe, F1, F2, Ft, train_data, val_data, epochs=1)
+    train_1('cuda', Fe, F1, F2, Ft, train_data, val_data, epochs=4)
     train_2('cuda', Fe, F1, F2, Ft, mnist, svhn, svhn_val)
 
 
