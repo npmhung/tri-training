@@ -5,7 +5,7 @@ import torch.nn.functional as F
 class F_extractor(nn.Module):
     def __init__(self):
         super(F_extractor, self).__init__()
-        self.conv1 = nn.Conv2d(1, 64, 5, padding=2)
+        self.conv1 = nn.Conv2d(3, 64, 5, padding=2)
         self.conv2 = nn.Conv2d(64, 64, 5, padding=2)
         self.conv3 = nn.Conv2d(64, 128, 5, padding=2)
         self.linear = nn.Linear(6272, 3072)

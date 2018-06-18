@@ -147,7 +147,7 @@ def train_2(device, models,  S, T, Val, step=50, iters = 2, val_step=100, restor
     :return:
     """
 
-    thres = 0.95
+    thres = 0.9
     opt_label = optim.Adam([*models['Fe'].parameters(), *models['F1'].parameters(), *models['F2'].parameters()], lr=1e-5)
     #scheduler_1 = optim.lr_scheduler.StepLR(opt_label, 100, gamma=0.99)
     opt_target = optim.Adam([*models['Fe'].parameters(), *models['Ft'].parameters()], lr=1e-4)
@@ -270,8 +270,10 @@ def train_2(device, models,  S, T, Val, step=50, iters = 2, val_step=100, restor
 
 
 def main():
-    transform_mnist = transforms.Compose([transforms.Pad(2), transforms.ToTensor()])
-    transform_svhn = transforms.Compose([transforms.Grayscale(num_output_channels=1), transforms.ToTensor()])
+    transform_mnist = transforms.Compose([transforms.Pad(2),
+                                          transforms.ToTensor(),
+                                          transforms.Lambda(lambda x: x.repeat(3, 1, 1))])
+    transform_svhn = transforms.Compose([transforms.ToTensor()])
     mnist = tv.datasets.MNIST('./dataset/mnist', download=False, transform=transform_mnist, train=True)
     mnist_val = tv.datasets.MNIST('./dataset/mnist', download=False, transform=transform_mnist, train=False)
     svhn = tv.datasets.SVHN('./dataset/svhn', download=False, transform=transform_svhn, split='train')
@@ -302,8 +304,8 @@ def main():
                                            batch_size=batch_size,
                                            shuffle=True,
                                            num_workers=DATA_WORKERS)
-    train_1('cuda', models, train_data, val_data, epochs=1, restore=False, path='phase1.pth.tar')
-    train_2('cuda', models,  mnist, svhn, svhn_val, step=200, val_step=400, iters=2, restore=False, path='phase2.pth.tar')
+    train_1(device, models, train_data, val_data, epochs=2, restore=False, path='phase1.pth.tar')
+    train_2(device, models,  mnist, svhn, svhn_val, step=200, val_step=400, iters=2, restore=False, path='phase2.pth.tar')
 
 
 if __name__ == '__main__':
