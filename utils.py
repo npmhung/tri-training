@@ -20,7 +20,12 @@ def load_checkpoint(path, models):
     assert os.path.exists(path), 'Checkpoint doesn\'t exist.'
     checkpoint = torch.load(path)
     for m in models:
-        models[m].load_state_dict(checkpoint[m])
+        try:
+            models[m].load_state_dict(checkpoint[m])
+        except KeyError as e:
+            print('Load checkpoint error ', e)
+        except:
+            models[m] = checkpoint[m]
 
     return models
 
